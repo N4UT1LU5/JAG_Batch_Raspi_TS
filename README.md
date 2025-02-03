@@ -53,11 +53,12 @@ Follow the project structure from the `JAG3D_Batch_example` project in `/jag3d_p
    - Export reference epoch (without `_c`) as `data/start/objectPoints_ref_apriori.txt` and replace the example data
 
 ### Step 2: Observation Configuration
-1. Import the observation of the first two epochs into JAG3D (normal procedure).
-2. Enable *congruence analysis* in `properties/leastsquares`
-3. Rename all object points of the control epoch (`Nr_c`) using search and replace
-4. Perform a least-squares adjustment - check for mistakes
-5. Save the configuration in the `jag3d_project` folder.
+1. Import the observation of the first two epochs into JAG3D (normal procedure).\
+*It is important that all points are included in both epochs. Points that are only imported once or not at all cannot be included in the analysis!*
+3. Enable *congruence analysis* in `properties/leastsquares`
+4. Rename all object points of the control epoch (`Nr_c`) using search and replace
+5. Perform a least-squares adjustment - check for mistakes
+6. Save the configuration in the `jag3d_project` folder.
 
 **For help:** Refer to the [JAG3D Tutorial on Congruence Analysis](https://software.applied-geodesy.org/wiki/tutorial/congruenceanalysis)
 
