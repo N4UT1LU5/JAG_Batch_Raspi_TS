@@ -175,6 +175,8 @@ def createQueries(
     obs["Val"].astype(float)
 
     # deactivate missing points (not measured in this epoch)
+    # Activate all points before deactivating
+    queries.append('UPDATE "OpenAdjustment"."PointApriori" SET "enable" = TRUE')
     extended_object_points = (objectPoints.astype(str).str.rstrip() + "_c").tolist()
     allPoints = (
         np.concatenate([datumPoints, extended_object_points]).astype(str).tolist()
