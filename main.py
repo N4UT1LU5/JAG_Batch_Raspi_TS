@@ -1,62 +1,88 @@
 import configparser
-import pandas as pd
 import os
-
 import lib.jag3dBatchLib as bf
+import pandas as pd
 
+import lib.PyGeoCom_Punktmessung as gc
 
-config = configparser.ConfigParser()
-config.sections()
-config.read("config_jag.ini")
+if __name__ == "__main__":
+    # Read Settings from config file
+    config = configparser.ConfigParser()
+    config.sections()
+    config.read("config_tachy.ini")
 
-projectName = config.get("JAG", "projectName")
-enginePath = config.get("JAG", "enginePath")
-databasePath = f"jdbc:hsqldb:file:{os.getcwd()}{projectName}"
+    totalstationMeasurementPath = config.get("Output", "path")
+    turnOff = config.getboolean("Misc", "turnOff")
+    twoFace = config.getboolean("Misc", "twoFace")
+    pktListPath = config.get("Input", "path")
+    hasHeader = config.getboolean("Input", "hasHeader")
 
-# Set Java Path environment variable
-jag3dPath = "JagEngine"
-java_path = rf"{os.getcwd()}\{jag3dPath}\openjdk\bin"
-os.environ["PATH"] = java_path
-os.environ["JAVA_HOME"] = java_path
-#print(os.environ["JAVA_HOME"])
-#subprocess.run("java -version", shell=True)
+    lamb = config.getint("ATM", "lambda")
+    pres = config.getfloat("ATM", "pressure")
+    temp = config.getfloat("ATM", "temp")
+    serialPort = config.get("Serial", "port")
+    baudRate = config.get("Serial", "baudRate")
 
+    ## Start totalstation measurement
+    measurementFileName = gc.StartTachyMeasurement(
+        totalstationMeasurementPath,
+        pktListPath,
+        turnOff,
+        twoFace,
+        hasHeader,
+        lamb,
+        pres,
+        temp,
+        serialPort,
+        baudRate,
+    )
 
-## Read start data
-filePathDatumPoints = config.get("Start", "datumPointFile")
-filePathObjectPoints = config.get("Start", "objectPointFile")
+    config.read("config_jag.ini")
+    enginePath = config.get("JAG", "enginePath")
+    controlEpochFilePath = config.get("JAG", "controlPath")
+    # create control epoch file from measurement file
+    bf.jag_input_format_parser(measurementFileName, controlEpochFilePath)
 
-## Read oberservation data from control epoch
-controlEpoch_df = pd.read_csv(r'data\controlEpoch\obs_c.txt', delimiter='\t', header=None, skipinitialspace=True, names= ['StID','TarID','group_id_txt','Val'])
+    projectName = config.get("JAG", "projectName")
 
-## Get the JAG3D groups
-groups = bf.CheckGroups(databasePath, os.getcwd() + enginePath)
-groups_type_nr = groups.astype(str)
+    databasePath = f"jdbc:hsqldb:file:{os.getcwd()}{projectName}"
+    groups = bf.CheckGroups(databasePath, os.getcwd() + enginePath)
+    groups_type_nr = groups.astype(str)
+    """
+    type    Observation
+    1       Leveling data
+    2       Direction sets
+    3       Horizontal distances
+    4       Slope distances
+    5       Zenith angles
+    """
+    filePathDatumPoints = config.get("Start", "datumPointFile")
+    filePathObjectPoints = config.get("Start", "objectPointFile")
+    filePathControlEpoch = f"{controlEpochFilePath}/obs_c.txt"
 
-## Create quereies to update the JAG3D database
-queries = bf.createQueries(
-    groups_type_nr, filePathDatumPoints, filePathObjectPoints, controlEpoch_df
-)
+    queries = bf.createQueries(
+        groups_type_nr, filePathDatumPoints, filePathObjectPoints, filePathControlEpoch
+    )
 
-## Write new obs in the database
-bf.WriteDatabase(queries,databasePath,enginePath)
+    # Write new measurements to JAG3D-database
+    bf.WriteDatabase(queries, databasePath, enginePath)
 
-## Execute JAG3D Batch
-bf.JAG_Execute(os.getcwd() + projectName,rf"{os.getcwd()}\{jag3dPath}")
-
-## Read database after alligment
-[PktApost, PktID, ObjApost, ObjID, globaltest] = bf.ReadDatabase(databasePath,enginePath)
-
-## summary of results
-objPoints = pd.merge(ObjID, ObjApost, on="ID")
-objPoints["Typ"] = "Obj"
-datPoints = pd.merge(PktID, PktApost, on="ID")
-datPoints["Typ"] = "Dat"
-datPoints = datPoints[
-    datPoints["Tprio"] != 0
-]  
-# Filter the object points
-result = pd.concat([datPoints, objPoints])
-result = result.drop(columns=["ID"])
-print(f'S0_2:{globaltest}')
-print(result)
+    bf.JAG_Execute(os.getcwd() + projectName)  # starts JAG3D adjustment via Shell
+    
+    [PktApost, PktID, ObjApost, ObjID, globaltest] = bf.ReadDatabase(
+        databasePath, enginePath
+    )  # Reads results from JAG3D database
+    
+    ## summary of results
+    objPoints = pd.merge(ObjID, ObjApost, on="ID")
+    objPoints["Typ"] = "Obj"
+    datPoints = pd.merge(PktID, PktApost, on="ID")
+    datPoints["Typ"] = "Dat"
+    datPoints = datPoints[
+        datPoints["Tprio"] != 0
+    ]  
+    # Filter the object points
+    result = pd.concat([datPoints, objPoints])
+    result = result.drop(columns=["ID"])
+    print(f'S0_2:{globaltest}')
+    print(result)

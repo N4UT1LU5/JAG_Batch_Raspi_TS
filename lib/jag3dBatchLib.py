@@ -2,6 +2,8 @@ import pandas as pd
 import subprocess
 import jaydebeapi
 import numpy as np
+import os
+import glob
 
 RHO = 200 / np.pi
 
@@ -22,7 +24,7 @@ def ConnectDatabase(databasePath, enginePath):
 # Function to execute the alligment in Terminal
 def JAG_Execute(projectName, jag3dPath):
     # if you want no output in the terminal --> change TRUE to FALSE
-    cmd = rf"java -cp {jag3dPath}\jag3d.jar org.applied_geodesy.adjustment.cmd.OpenAdjustmentCMD {projectName} TRUE"
+    cmd = rf"java -cp {jag3dPath}/jag3d.jar org.applied_geodesy.adjustment.cmd.OpenAdjustmentCMD {projectName} TRUE"
     print(cmd)
     subprocess.run(cmd, shell=True)
     return
@@ -232,3 +234,54 @@ def createQueries(
                     AND "end_point_name" = '{obs.loc[i, "TarID"]}';"""
         queries.append(query)
     return queries
+def jag_input_format_parser(input_filepath: str, output_filepath: str):
+    """
+    function for parsing totalstation measurement output to jag3d file format
+
+    filepath :  str
+                path to the input file
+    """
+
+    # read totalstation measurement file
+    with open(input_filepath, "r") as f:
+        df_input = pd.read_csv(f, names=["STN", "TRG", "Hz", "V", "Sd", "time"])
+        df_input = df_input.drop("time", axis=1)
+        # print(df_input)
+
+    output_df = pd.DataFrame(
+        columns=["STP", "TRG", "TYPE", "VALUE"], index=range(3 * len(df_input.index))
+    )
+    nmbOfObsType = len(df_input.columns) - 2
+    nmbOfObs = len(df_input.index)
+
+    # loop over every observation type in file
+    for i in range(nmbOfObsType):
+        # loop over every point measurement
+        for j in range(nmbOfObs):
+            newRow = [
+                df_input.iloc[j, 0],
+                df_input.iloc[j, 1],
+                df_input.columns[i + 2],
+                df_input.iloc[j, i + 2],
+            ]
+            output_df.iloc[i * nmbOfObs + j] = newRow
+    # print(output_df)
+
+    output_df.to_csv(
+        f"{output_filepath}/obs_c.txt", index=False, header=False, sep="\t"
+    )
+
+
+def getLatestFileInFolder(pathToFolder):
+    """
+    find newest file in folder and return its name
+    """
+    files = glob(os.path.join(pathToFolder, "*"))
+
+    if files:
+        latestFile = max(files, key=os.path.getmtime)
+        # print(f"Neueste Datei: {latestFile}")
+        return latestFile
+    else:
+        print("Folder empty")
+
