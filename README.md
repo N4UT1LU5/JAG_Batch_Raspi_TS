@@ -1,19 +1,29 @@
-# Leica Total Station Control via Raspberry Pi (GeoCOM)
-JAG3D-Batch Raspi-TS extends the functionality of the base JAG3D-Batch Project by integrating the Leica GeoCOM interface, thereby allowing completely automated capturing of observations via a Leica Total Station and a Raspberry Pi.
 
-## Requirements
+# Leica Total Station Control via Raspberry Pi (GeoCOM) + JAG3D Integration
 
-- **Licensed GeoCOM interface** on the total station
-- **Leica Total Station**, e.g., TS15 with Leica Viva field software
-- **Raspberry Pi** with Linux (e.g., Raspberry Pi OS)
-- **Connection cables**: GEV189 or GEV267 (USB to 5-pin, RS232)
-- **Python 3** and required libraries
-- Configuration file: `config_tachy.ini`
+This project extends the [JAG3D-Batch](https://github.com/) project by providing a lightweight, Python-based interface for controlling Leica total stations via a Raspberry Pi using the GeoCOM protocol. It enables automated measurements, atmospheric data integration, and batch processing of deformation analysis in JAG3D.
 
+## Folder Structure
+
+```
+project_root/
+├── config_tachy.ini           # Config for total station settings
+├── config_jag.ini             # Config for JAG3D project interaction
+├── data/
+│   ├── punktliste/            # List of target points
+│   ├── measurements/          # Raw measurements
+│   ├── controlEpoch/          # Converted measurements for JAG3D
+│   └── start/                 # Exported coordinates from JAG3D
+├── jag3d_project/             # Preconfigured JAG3D project
+├── hypersql/                  # HyperSQL DB for JAG3D
+├── lib/                       # Python scripts
+├── venv/                      # Python virtual environment
+└── main.py                    # Entry point for measurement & analysis
+```
 
 ## Setup
 
-### 1. Activate GeoCOM Interface on the Total Station
+### 1. Total Station Preparation (GeoCOM)
 
 1. Start the total station and access the main menu.
 2. Navigate to:  
@@ -22,27 +32,19 @@ JAG3D-Batch Raspi-TS extends the functionality of the base JAG3D-Batch Project b
 4. Open the "Device..." menu and select **RS232**.
 5. Reset all settings to default using `F5 (Standard)`, and save with `F1 (Save)`.
 
-**Note:** After this, make sure to perform stationing and set the correct prism type.
+### 2. Raspberry Pi Connection
 
+Connect via GEV189 or GEV267 cable. Check the serial port:
 
-### 2. Connect to the Raspberry Pi
+```bash
+dmesg | grep tty
+```
 
-1. Connect the USB end of the cable to the Raspberry Pi.
-2. Connect the 5-pin end to the total station.
-3. Check the assigned device path on the Raspberry Pi using:
+Use the assigned `/dev/ttyUSBX` in your config file.
 
-   ```bash
-   dmesg | grep tty
-   ```
+### 3. Python Configuration
 
-   Note the `/dev/ttyUSBX` path.
-
-
-### 3. Configure the Python Measurement Program
-
-1. Edit the `config_tachy.ini` file.
-
-#### Example Configuration:
+Edit `config_tachy.ini`:
 
 ```ini
 [Serial]
@@ -50,25 +52,68 @@ baudRate = 115200
 port = /dev/ttyUSB0
 
 [Misc]
-# additional totalstation measurement settings 
+# additional totalstation measurement settings
 
 [ATM]
-# Atmospheric parameters, optional sensor integration
+# Optional atmospheric sensor config
 
 [Output]
-# Directory for measurement results
+# Path for measurements
 
 [Input]
-# Path to the target point list
+# Path to point list
 ```
 
-2. Adjust the baud rate and port according to your total station and Raspberry Pi.
+## Measurement & Deformation Analysis
 
+1. Perform initial setup and record a point list consisting of angles and distances. These measurements tell the total station where to find the targets.
+2. Save the point list under `data/punktliste/` (same format as the sample).
+3. Import coordinates to JAG3D as datum and new points.
 
-## Usage
+### JAG3D Preparation
 
-After successful setup, you can start the Python program to perform a automated measurement.
+- Prepare the `jag3d_project/` according to the deformation monitoring workflow described in the base JAG3D-Batch project.
+- Export reference epoch coordinates (datum & object points) via right-click in JAG3D > "Export raw data".
+- Place those files in `data/start/`.
+- Match filenames in `config_jag.ini` under `[Start]`.
+
+### Java Runtime
+
+Ensure you have Java 21 installed. The script uses Java for JAG3D batch processing.
+Donwload the used version from [Bellsoft](https://download.bell-sw.com/java/21.0.5+11/bellsoft-jre21.0.5+11-linux-aarch64-full.deb)
 
 ```bash
-python3 your_measurement_program.py
+sudo apt install ./bellsoft-jre21.0.5+11-linux-aarch64-full.deb
 ```
+
+## Running the Script
+
+Once the project is setup, you can run the main script to start measurements and analysis.:
+
+```bash
+python3 main.py
+```
+
+The script:
+- Triggers a new measurement
+- Converts results for JAG3D
+- Updates project DB with new control epoch
+- Executes batch-based congruence analysis
+- Logs results in a file
+
+## Automating with Cron
+
+To run every hour open the crontab editor:
+
+```bash
+crontab -e
+```
+
+Add:
+
+```bash
+0 * * * * cd /home/pi/project/ && /home/pi/project/venv/bin/python3 /home/pi/project/main.py
+```
+
+> [!NOTE]
+> the paths must be adjusted to your project path.
