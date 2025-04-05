@@ -49,6 +49,9 @@ JAG3D-Batch Raspi-TS extends the functionality of the base JAG3D-Batch Project b
 baudRate = 115200
 port = /dev/ttyUSB0
 
+[Misc]
+# additional totalstation measurement settings 
+
 [ATM]
 # Atmospheric parameters, optional sensor integration
 
